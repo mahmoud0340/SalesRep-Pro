@@ -3,6 +3,12 @@ import database.db as db
 from datetime import datetime, timedelta
 import pandas as pd
 import io
+# --- إضافة استيراد دالة المزامنة ---
+try:
+    from google_sync import send_data_to_sheets
+except ImportError:
+    send_data_to_sheets = None
+# --------------------------------
 
 PRODUCTS_LIST = [
     "HANZ (ATF)",
@@ -15,18 +21,51 @@ PRODUCTS_LIST = [
 def create_invoice(client_id, quantity, price_per_unit, product_name, notes=""):
     with db.get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT 1 FROM Clients WHERE Client_ID = ?", (client_id,))
-        if not cursor.fetchone():
+        
+        # جلب اسم العميل واسم المندوب لغرض المزامنة
+        cursor.execute('''
+            SELECT c.Name, u.username 
+            FROM Clients c 
+            JOIN Users u ON c.Assigned_Rep = u.id 
+            WHERE c.Client_ID = ?
+        ''', (client_id,))
+        result = cursor.fetchone()
+        
+        if not result:
             raise ValueError("العميل غير موجود")
+        
+        client_name, rep_name = result
         amount = quantity * price_per_unit
+        current_time = datetime.now()
+
+        # 1. الحفظ في قاعدة البيانات المحلية (SQLite)
         cursor.execute('''
             INSERT INTO Invoices (Client_ID, Amount, Quantity, Created_At, Notes, ProductName, is_deleted)
             VALUES (?, ?, ?, ?, ?, ?, 0)
-        ''', (client_id, amount, quantity, datetime.now(), notes, product_name))
+        ''', (client_id, amount, quantity, current_time, notes, product_name))
         conn.commit()
+        
         invoice_id = cursor.lastrowid
+
+        # 2. المزامنة التلقائية مع جوجل شيت
+        if send_data_to_sheets:
+            data_to_sync = {
+                "رقم الفاتورة": str(invoice_id),
+                "التاريخ": current_time.strftime('%Y-%m-%d %H:%M:%S'),
+                "اسم العميل": client_name,
+                "المنتج": product_name,
+                "الكمية": quantity,
+                "سعر الوحدة": price_per_unit,
+                "الإجمالي": amount,
+                "المندوب": rep_name,
+                "ملاحظات": notes
+            }
+            # يتم الإرسال في الخلفية (سيظهر خطأ في الـ Terminal فقط إذا فشل)
+            send_data_to_sheets(data_to_sync)
+
         return invoice_id, amount
 
+# ... بقية الدوال كما هي دون تغيير ...
 def get_invoices_by_client(client_id):
     with db.get_db_connection() as conn:
         cursor = conn.cursor()
@@ -281,9 +320,7 @@ def get_report_data_for_google_sheets(start_date, end_date, rep_id=None):
         })
     return report_rows
 
-# ===================== دالة الحذف المنطقي الجديدة =====================
 def soft_delete_invoice(invoice_id):
-    """حذف منطقي: تغيير is_deleted إلى 1 بدلاً من حذف الصف"""
     with db.get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE Invoices SET is_deleted = 1 WHERE Invoice_ID = ?", (invoice_id,))
