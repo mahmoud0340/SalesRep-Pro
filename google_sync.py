@@ -2,30 +2,33 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 
-# رابط ملفك الخاص الذي أرسلته
+# الرابط الخاص بك
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1UD9Q1c4wl07nWbY6RwcrO5DASuDav97bGJHIZdNk10I/edit?usp=sharing"
 
 def send_data_to_sheets(new_row_dict):
     try:
-        # إنشاء اتصال مع جوجل شيت باستخدام الأسرار الموجودة في secrets.toml
+        # الاتصال بجوجل شيت
         conn = st.connection("gsheets", type=GSheetsConnection)
         
-        # قراءة البيانات الحالية (للتأكد من الإضافة في سطر جديد)
+        # قراءة البيانات الحالية (نحدد اسم الورقة Sheet1 لضمان الدقة)
         try:
-            existing_data = conn.read(spreadsheet=SHEET_URL)
+            existing_data = conn.read(spreadsheet=SHEET_URL, worksheet="Sheet1")
         except:
-            # إذا كان الشيت فارغاً تماماً
             existing_data = pd.DataFrame()
         
-        # تحويل البيانات الجديدة إلى DataFrame
+        # تحويل الصف الجديد لـ DataFrame
         new_df = pd.DataFrame([new_row_dict])
         
-        # دمج البيانات
-        updated_df = pd.concat([existing_data, new_df], ignore_index=True)
-        
-        # رفع التحديث
-        conn.update(spreadsheet=SHEET_URL, data=updated_df)
+        # دمج الصف الجديد مع القديم
+        if not existing_data.empty:
+            updated_df = pd.concat([existing_data, new_df], ignore_index=True)
+        else:
+            updated_df = new_df
+            
+        # تحديث الملف بالكامل
+        conn.update(spreadsheet=SHEET_URL, worksheet="Sheet1", data=updated_df)
         return True
     except Exception as e:
-        st.error(f"خطأ في المزامنة: {e}")
+        # طباعة الخطأ في الكونسول لتشخيصه
+        print(f"DEBUG: Google Sheets Error -> {e}")
         return False
