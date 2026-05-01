@@ -6,20 +6,10 @@ from contextlib import contextmanager
 
 DB_PATH = "salesrep.db"
 
-# --------------------------- تشفير كلمة المرور ---------------------------
 def hash_password(password):
-    """تشفير كلمة المرور باستخدام SHA-256 (سيتم تحسينه لاحقاً)"""
     return hashlib.sha256(password.encode()).hexdigest()
 
-# --------------------------- التحقق من قوة كلمة المرور ---------------------------
 def validate_password(password):
-    """
-    التحقق من قوة كلمة المرور:
-    - طول لا يقل عن 8 أحرف
-    - يحتوي على حرف كبير واحد على الأقل
-    - يحتوي على رقم واحد على الأقل
-    - يحتوي على رمز خاص واحد على الأقل
-    """
     if len(password) < 8:
         return False, "كلمة المرور يجب أن تكون 8 أحرف على الأقل"
     if not re.search(r"[A-Z]", password):
@@ -30,22 +20,17 @@ def validate_password(password):
         return False, "كلمة المرور يجب أن تحتوي على رمز خاص واحد على الأقل (مثل !@#$%^&*)"
     return True, "كلمة المرور قوية"
 
-# --------------------------- إدارة الاتصال ---------------------------
 @contextmanager
 def get_db_connection():
-    """مدير سياق لضمان إغلاق الاتصال تلقائياً"""
     conn = sqlite3.connect(DB_PATH)
     try:
         yield conn
     finally:
         conn.close()
 
-# --------------------------- تهيئة قاعدة البيانات والترقية ---------------------------
 def init_db():
-    """إنشاء الجداول إذا لم تكن موجودة، ثم ترقيتها"""
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        # جدول المستخدمين
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS Users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,7 +40,6 @@ def init_db():
                 is_active INTEGER DEFAULT 1
             )
         ''')
-        # جدول العملاء
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS Clients (
                 Client_ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -64,10 +48,10 @@ def init_db():
                 Address TEXT NOT NULL,
                 Assigned_Rep INTEGER NOT NULL,
                 Client_Code TEXT UNIQUE NOT NULL,
+                Location TEXT DEFAULT '',
                 FOREIGN KEY (Assigned_Rep) REFERENCES Users(id)
             )
         ''')
-        # جدول الفواتير
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS Invoices (
                 Invoice_ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,15 +59,14 @@ def init_db():
                 Amount REAL NOT NULL,
                 Quantity INTEGER NOT NULL,
                 Created_At TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                Notes TEXT DEFAULT '',
+                ProductName TEXT DEFAULT '',
+                is_deleted INTEGER DEFAULT 0,
                 FOREIGN KEY (Client_ID) REFERENCES Clients(Client_ID)
             )
         ''')
         conn.commit()
-
-    # ترقية قاعدة البيانات (إضافة عمود Notes إذا لم يكن موجوداً)
     upgrade_db()
-
-    # إضافة مدير افتراضي إذا لم يكن موجوداً (مع تجاوز التحقق من قوة كلمة المرور للمستخدم الأول)
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM Users WHERE username = 'admin'")
@@ -94,17 +77,22 @@ def init_db():
             conn.commit()
 
 def upgrade_db():
-    """إضافة عمود Notes إلى جدول Invoices إذا لم يكن موجوداً"""
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("PRAGMA table_info(Invoices)")
+        cursor.execute("PRAGMA table_info(Clients)")
         columns = [col[1] for col in cursor.fetchall()]
-        if 'Notes' not in columns:
-            cursor.execute("ALTER TABLE Invoices ADD COLUMN Notes TEXT DEFAULT ''")
-            conn.commit()
-            print("تم إضافة عمود Notes إلى جدول Invoices")
+        if 'Location' not in columns:
+            cursor.execute("ALTER TABLE Clients ADD COLUMN Location TEXT DEFAULT ''")
+        
+        cursor.execute("PRAGMA table_info(Invoices)")
+        columns_inv = [col[1] for col in cursor.fetchall()]
+        if 'ProductName' not in columns_inv:
+            cursor.execute("ALTER TABLE Invoices ADD COLUMN ProductName TEXT DEFAULT ''")
+        if 'is_deleted' not in columns_inv:
+            cursor.execute("ALTER TABLE Invoices ADD COLUMN is_deleted INTEGER DEFAULT 0")
+        conn.commit()
 
-# --------------------------- دوال المستخدمين ---------------------------
+# باقي دوال المستخدمين كما هي (لم تتغير)
 def get_user_by_username(username):
     with get_db_connection() as conn:
         cursor = conn.cursor()
@@ -115,7 +103,6 @@ def get_user_by_username(username):
         return None
 
 def create_user(username, password, role):
-    """إنشاء مستخدم جديد مع التحقق من قوة كلمة المرور"""
     valid, msg = validate_password(password)
     if not valid:
         return False, msg
@@ -131,7 +118,6 @@ def create_user(username, password, role):
             return False, "اسم المستخدم موجود بالفعل"
 
 def update_user_password(user_id, new_password):
-    """تحديث كلمة المرور مع التحقق من القوة"""
     valid, msg = validate_password(new_password)
     if not valid:
         return False, msg
@@ -156,24 +142,19 @@ def get_all_users():
         return [{"id": u[0], "username": u[1], "role": u[2], "is_active": u[3]} for u in users]
 
 def delete_user(user_id, current_user_id):
-    """حذف مستخدم فقط إذا لم يكن لديه عملاء مرتبطون"""
     if user_id == current_user_id:
         return False, "لا يمكن حذف حسابك الحالي"
-    
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        # التحقق من وجود عملاء
         cursor.execute("SELECT COUNT(*) FROM Clients WHERE Assigned_Rep = ?", (user_id,))
         clients_count = cursor.fetchone()[0]
         if clients_count > 0:
-            return False, f"لا يمكن حذف المستخدم لأنه مسؤول عن {clients_count} عميل/عملاء. قم بنقل العملاء أولاً أو تعطيل الحساب."
-        
+            return False, f"لا يمكن حذف المستخدم لأنه مسؤول عن {clients_count} عميل. قم بنقل العملاء أولاً أو تعطيل الحساب."
         cursor.execute("DELETE FROM Users WHERE id = ?", (user_id,))
         conn.commit()
         return True, "تم حذف المستخدم بنجاح"
 
 def get_active_reps():
-    """إرجاع قائمة المندوبين النشطين (لنقل العملاء)"""
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id, username FROM Users WHERE role = 'Rep' AND is_active = 1")

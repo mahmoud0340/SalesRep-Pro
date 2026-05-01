@@ -1,15 +1,24 @@
-# app.py - نسخة عمل سابقة (بدون HANZ)
+# app.py
 import streamlit as st
 from database.db import init_db, get_user_by_username, hash_password
 from modules import rep, admin
 
 init_db()
 
-st.set_page_config(page_title="SalesRep Pro", page_icon="📱", layout="wide", initial_sidebar_state="auto")
+st.set_page_config(page_title="SalesRep Pro", page_icon="🛢️", layout="wide", initial_sidebar_state="auto")
 
+# ========== الهيدر باسم الشركة ==========
+st.markdown("""
+    <div style="text-align: center; padding: 1rem; background: linear-gradient(90deg, #E65100, #BF360C); border-radius: 10px; margin-bottom: 1rem;">
+        <h1 style="color: white; margin: 0; font-family: 'Arial Black', sans-serif;">🛢️ HANZ & TEX LUBRICANTS 🛢️</h1>
+        <p style="color: #FFCC80; margin: 0;">نظام إدارة المبيعات - بجودة عالية</p>
+    </div>
+""", unsafe_allow_html=True)
+
+# ========== تحسينات PWA ==========
 pwa_html = """
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#1E88E5">
+<meta name="theme-color" content="#E65100">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="SalesRep Pro">
@@ -17,57 +26,101 @@ pwa_html = """
 """
 st.markdown(pwa_html, unsafe_allow_html=True)
 
-# CSS الجذاب (بدون خلفية HANZ)
+# ========== CSS ==========
 st.markdown("""
 <style>
     :root {
-        --primary-color: #4F46E5;
-        --primary-dark: #4338CA;
-        --bg-color: #F9FAFB;
+        --primary-color: #E65100;
+        --primary-dark: #BF360C;
+        --bg-color: #F5F5F5;
         --card-bg: #FFFFFF;
-        --text-color: #1F2937;
-        --border-color: #E5E7EB;
+        --text-color: #212121;
+        --border-color: #E0E0E0;
         --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         --radius: 0.75rem;
     }
-    .stApp { background-color: var(--bg-color); }
-    [data-testid="stSidebar"] { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 0 2rem 2rem 0; }
-    .stButton > button { background: linear-gradient(90deg, var(--primary-color) 0%, var(--primary-dark) 100%); color: white; border-radius: var(--radius); }
-    .stButton > button:hover { transform: translateY(-2px); }
-    .stMetric { background: var(--card-bg); border-radius: var(--radius); padding: 1rem; box-shadow: var(--shadow-md); }
-    .dataframe th { background-color: var(--primary-color) !important; color: white !important; }
-    .stTabs [aria-selected="true"] { background-color: var(--primary-color); color: white; }
-                h1 { background: linear-gradient(120deg, var(--primary-color), var(--primary-dark)); background-clip: text; -webkit-background-clip: text; color: transparent; }
-/* خلفية HANZ المائية */
-.stApp::before {
-    content: "HANZ";
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    font-size: 8rem;
-    font-weight: bold;
-    color: rgba(0, 0, 0, 0.03);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: none;
-    z-index: 0;
-    font-family: Arial, sans-serif;
-    transform: rotate(-15deg);
-}           
-            </style>
+    .stApp {
+        background-color: var(--bg-color);
+    }
+    [data-testid="stSidebar"] {
+        background: linear-gradient(135deg, #212121 0%, #424242 100%);
+        border-radius: 0 2rem 2rem 0;
+    }
+    [data-testid="stSidebar"] .stMarkdown, 
+    [data-testid="stSidebar"] .stText {
+        color: white !important;
+    }
+    [data-testid="stSidebar"] .stButton button {
+        background-color: #E65100;
+        color: white;
+        border: none;
+    }
+    [data-testid="stSidebar"] .stButton button:hover {
+        background-color: #BF360C;
+        transform: scale(1.02);
+    }
+    .stButton > button {
+        background: linear-gradient(90deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+        color: white;
+        border: none;
+        border-radius: var(--radius);
+        padding: 0.6rem 1.2rem;
+        font-weight: 600;
+        transition: all 0.1s ease;
+        box-shadow: var(--shadow-md);
+    }
+    .stButton > button:active {
+        transform: scale(0.97);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+    .stButton > button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    }
+    .stTextInput > div > input, .stTextArea > div > textarea, .stSelectbox > div {
+        border-radius: var(--radius);
+        border: 1px solid var(--border-color);
+    }
+    .stMetric {
+        background: var(--card-bg);
+        border-radius: var(--radius);
+        padding: 1rem;
+        box-shadow: var(--shadow-md);
+        text-align: center;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.5rem;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: var(--primary-color);
+        color: white;
+        border-radius: var(--radius);
+    }
+    h1, h2, h3 {
+        font-family: 'Arial', sans-serif;
+        color: var(--text-color);
+    }
+    .custom-footer {
+        text-align: center;
+        margin-top: 2rem;
+        padding: 1rem;
+        border-top: 1px solid var(--border-color);
+        color: #757575;
+        font-size: 0.8rem;
+    }
+</style>
 """, unsafe_allow_html=True)
 
+# ========== جلسة المستخدم ==========
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.user_id = None
     st.session_state.username = None
     st.session_state.role = None
 
+# ========== شاشة تسجيل الدخول ==========
 if not st.session_state.logged_in:
-    st.title("📱 تسجيل الدخول - SalesRep Pro")
+    st.title("🔐 تسجيل الدخول - SalesRep Pro")
     with st.form("login_form"):
         username = st.text_input("اسم المستخدم")
         password = st.text_input("كلمة المرور", type="password")
@@ -82,10 +135,9 @@ if not st.session_state.logged_in:
                 st.rerun()
             else:
                 st.error("اسم المستخدم أو كلمة المرور غير صحيحة أو الحساب غير نشط")
-    st.info("المدير الافتراضي: username = admin, password = admin123")
 else:
     with st.sidebar:
-        st.header(f"👋 مرحباً أحمد راشد، {st.session_state.username}")
+        st.header(f"👋 مرحباً، {st.session_state.username}")
         st.write(f"🔑 الدور: {st.session_state.role}")
         if st.button("🚪 تسجيل الخروج"):
             for key in ['logged_in', 'user_id', 'username', 'role', 'selected_client_for_invoice', 'edit_client_id', 'clients_page']:
@@ -97,3 +149,6 @@ else:
         rep.show_rep_dashboard(st.session_state.user_id)
     elif st.session_state.role == "Admin":
         admin.show_admin_dashboard()
+    
+    # تذييل
+    st.markdown('<div class="custom-footer">🔧 نظام إدارة مبيعات HANZ & TEX | شركة مابكو للزيوت المعدنيه | جميع الحقوق محفوظة © 2026</div>', unsafe_allow_html=True)
